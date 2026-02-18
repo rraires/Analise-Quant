@@ -49,6 +49,9 @@ async def get_stock_data(ticker: str, days: int = 30):
         return result.data
         
     except Exception as e:
+        import traceback
+        print(f"Erro em get_stock_returns: {str(e)}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/stocks/{ticker}/returns", response_model=List[MonthlyPerformance])
@@ -76,6 +79,9 @@ async def get_stock_returns(ticker: str, years: int = 10):
         return monthly_perf
         
     except Exception as e:
+        import traceback
+        print(f"Erro em get_stock_returns: {str(e)}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

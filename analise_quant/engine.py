@@ -182,16 +182,6 @@ class CollectionEngine:
 
         return results
 
-        for module_name in self.registry.list_modules():
-            try:
-                results[module_name] = self.collect(
-                    module_name, tickers, start_date, end_date
-                )
-            except Exception:
-                logger.exception("Falha na coleta do módulo '%s'", module_name)
-
-        return results
-
     def list_modules(self) -> list[str]:
         """Lista nomes de todos os módulos disponíveis."""
         return self.registry.list_modules()
