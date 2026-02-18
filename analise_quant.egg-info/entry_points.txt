@@ -1,0 +1,2 @@
+[console_scripts]
+analise-quant = analise_quant.cli:main
