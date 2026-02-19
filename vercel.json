@@ -2,7 +2,16 @@
   "framework": "vite",
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.py" }
-  ]
+  ],
+  "env": {
+    "PIP_NO_BINARY": "multitasking"
+  }
 }
