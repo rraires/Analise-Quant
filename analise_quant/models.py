@@ -4,6 +4,7 @@ from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field
+from typing import List, Dict, Optional, Union
 
 
 class AssetType(str, Enum):
@@ -35,7 +36,7 @@ class MarketData(BaseModel):
     low: float = Field(description="Preço mínimo")
     close: float = Field(description="Preço de fechamento")
     volume: int = Field(description="Volume negociado")
-    adjusted_close: float | None = Field(
+    adjusted_close: Optional[float] = Field(
         default=None, description="Preço de fechamento ajustado"
     )
     currency: str = Field(default="BRL", description="Moeda")
@@ -57,17 +58,17 @@ class CollectionResult(BaseModel):
 
     module_name: str = Field(description="Nome do módulo que executou a coleta")
     status: CollectionStatus = Field(description="Status da coleta")
-    data: list[MarketData] = Field(default_factory=list, description="Dados coletados")
-    errors: list[str] = Field(
+    data: List[MarketData] = Field(default_factory=list, description="Dados coletados")
+    errors: List[str] = Field(
         default_factory=list, description="Erros encontrados durante a coleta"
     )
-    tickers_requested: list[str] = Field(
+    tickers_requested: List[str] = Field(
         default_factory=list, description="Tickers solicitados"
     )
-    tickers_success: list[str] = Field(
+    tickers_success: List[str] = Field(
         default_factory=list, description="Tickers coletados com sucesso"
     )
-    tickers_failed: list[str] = Field(
+    tickers_failed: List[str] = Field(
         default_factory=list, description="Tickers que falharam"
     )
     started_at: datetime = Field(description="Início da coleta")
@@ -88,7 +89,7 @@ class MonthlyPerformance(BaseModel):
     year: int = Field(description="Ano de referência")
     # Mapeia número do mês (1-12) para o retorno percentual (ex: 0.05 para 5%)
     # Pode ser None se o mês ainda não ocorreu ou não há dados
-    returns: dict[int, float | None] = Field(
+    returns: Dict[int, Optional[float]] = Field(
         default_factory=dict, description="Retornos mensais (1=Jan, 12=Dez)"
     )
-    ytd: float | None = Field(default=None, description="Retorno acumulado no ano (Year to Date)")
+    ytd: Optional[float] = Field(default=None, description="Retorno acumulado no ano (Year to Date)")

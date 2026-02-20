@@ -2,10 +2,11 @@
 
 from pydantic_settings import BaseSettings
 from pydantic import Field
+from typing import List
 
 
 # Top 10 ações do IBOV por peso (referência)
-DEFAULT_TICKERS_BOVESPA: list[str] = [
+DEFAULT_TICKERS_BOVESPA: List[str] = [
     "VALE3",
     "PETR4",
     "ITUB4",
@@ -29,7 +30,7 @@ class Settings(BaseSettings):
     collection_timeout: int = Field(
         default=60, description="Timeout de coleta em segundos"
     )
-    default_tickers: list[str] = Field(
+    default_tickers: List[str] = Field(
         default=DEFAULT_TICKERS_BOVESPA,
         description="Lista padrão de tickers para coleta",
     )

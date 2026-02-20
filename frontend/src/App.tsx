@@ -54,6 +54,8 @@ function App() {
     try {
       const response = await axios.get<MarketData[]>(`/api/stocks/${symbol}?days=${days}`)
 
+      console.log('Dados crus da API:', response.data)
+
       if (!Array.isArray(response.data)) {
         throw new Error('Formato de dados inválido recebido da API')
       }
