@@ -30,30 +30,30 @@ function App() {
 
   const fetchData = async (symbol: string, timeRange: string, isChartUpdate: boolean = false) => {
     if (isChartUpdate) {
-        setChartLoading(true)
+      setChartLoading(true)
     } else {
-        setLoading(true)
-        setData([])
-        setMonthlyData([])
+      setLoading(true)
+      setData([])
+      setMonthlyData([])
     }
-    
+
     setError(null)
-    
+
     console.log('Iniciando busca para:', symbol, 'Periodo:', timeRange, 'Update:', isChartUpdate)
 
     let days = 30
     switch (timeRange) {
-        case '6m': days = 180; break;
-        case '1y': days = 365; break;
-        case '3y': days = 1095; break;
-        case '5y': days = 1825; break;
-        case '10y': days = 3650; break;
-        default: days = 180;
+      case '6m': days = 180; break;
+      case '1y': days = 365; break;
+      case '3y': days = 1095; break;
+      case '5y': days = 1825; break;
+      case '10y': days = 3650; break;
+      default: days = 180;
     }
 
     try {
-      const response = await axios.get<MarketData[]>(`http://localhost:8000/api/stocks/${symbol}?days=${days}`)
-      
+      const response = await axios.get<MarketData[]>(`/api/stocks/${symbol}?days=${days}`)
+
       if (!Array.isArray(response.data)) {
         throw new Error('Formato de dados inválido recebido da API')
       }
@@ -69,10 +69,10 @@ function App() {
       // Carregar dados mensais apenas se for busca completa
       if (!isChartUpdate) {
         try {
-            const returnsResponse = await axios.get<MonthlyPerformance[]>(`http://localhost:8000/api/stocks/${symbol}/returns`)
-            setMonthlyData(returnsResponse.data)
+          const returnsResponse = await axios.get<MonthlyPerformance[]>(`/api/stocks/${symbol}/returns`)
+          setMonthlyData(returnsResponse.data)
         } catch (returnsErr) {
-            console.error('Erro ao buscar retornos mensais:', returnsErr)
+          console.error('Erro ao buscar retornos mensais:', returnsErr)
         }
       }
 
@@ -81,9 +81,9 @@ function App() {
       setError(err.response?.data?.detail || err.message || 'Erro ao carregar dados')
     } finally {
       if (isChartUpdate) {
-          setChartLoading(false)
+        setChartLoading(false)
       } else {
-          setLoading(false)
+        setLoading(false)
       }
     }
   }
@@ -95,10 +95,10 @@ function App() {
   }
 
   const handlePeriodChange = (newPeriod: string) => {
-      setPeriod(newPeriod)
-      if (ticker) {
-          fetchData(ticker, newPeriod, true)
-      }
+    setPeriod(newPeriod)
+    if (ticker) {
+      fetchData(ticker, newPeriod, true)
+    }
   }
 
   const formatCurrency = (value: number | undefined | null) => {
@@ -155,12 +155,12 @@ function App() {
           ) : data.length > 0 ? (
             <>
               <ErrorBoundary>
-                <InteractiveLineChart 
-                    data={data} 
-                    ticker={ticker} 
-                    period={period}
-                    onPeriodChange={handlePeriodChange}
-                    isLoading={chartLoading}
+                <InteractiveLineChart
+                  data={data}
+                  ticker={ticker}
+                  period={period}
+                  onPeriodChange={handlePeriodChange}
+                  isLoading={chartLoading}
                 />
               </ErrorBoundary>
 
