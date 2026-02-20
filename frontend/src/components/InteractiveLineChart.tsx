@@ -26,7 +26,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
 
     // Ordenar dados por data
     const sortedData = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    
+
     const series = [{
         name: ticker,
         data: sortedData.map((item, index) => {
@@ -63,12 +63,12 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                     pan: true,
                     reset: true
                 },
-                autoSelected: 'zoom' 
+                autoSelected: 'zoom'
             },
             foreColor: '#94a3b8',
             fontFamily: 'Inter, sans-serif'
         },
-        colors: [viewMode === 'price' ? '#38bdf8' : '#a855f7'], 
+        colors: [viewMode === 'price' ? '#38bdf8' : '#a855f7'],
         stroke: {
             curve: 'smooth',
             width: 2
@@ -92,8 +92,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                 lines: { show: false }
             },
             yaxis: {
-                lines: { show: true },
-                zeroLineColor: '#cbd5e1'
+                lines: { show: true }
             }
         },
         xaxis: {
@@ -164,7 +163,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                         {viewMode === 'price' ? 'Preço de Fechamento (R$)' : 'Retorno Acumulado (%)'}
                     </p>
                 </div>
-                
+
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     {/* View Mode Toggle */}
                     <div style={{ display: 'flex', gap: '0.25rem', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px' }}>
