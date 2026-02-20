@@ -69,7 +69,7 @@ function App() {
       // Carregar dados mensais apenas se for busca completa
       if (!isChartUpdate) {
         try {
-            const returnsResponse = await axios.get<MonthlyPerformance[]>(`/api/stocks/${symbol}/returns`)
+            const returnsResponse = await axios.get<MonthlyPerformance[]>(`http://localhost:8000/api/stocks/${symbol}/returns`)
             setMonthlyData(returnsResponse.data)
         } catch (returnsErr) {
             console.error('Erro ao buscar retornos mensais:', returnsErr)

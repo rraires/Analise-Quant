@@ -92,7 +92,8 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                 lines: { show: false }
             },
             yaxis: {
-                lines: { show: true }
+                lines: { show: true },
+                zeroLineColor: '#cbd5e1'
             }
         },
         xaxis: {
