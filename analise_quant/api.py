@@ -48,6 +48,8 @@ async def get_stock_data(ticker: str, days: int = 30):
             
         return result.data
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -57,10 +59,9 @@ async def get_stock_returns(ticker: str, years: int = 10):
     Calcula e retorna a performance mensal para os últimos X anos.
     """
     try:
-        # Pega um pouco mais de dados para garantir que temos o fechamento do mês anterior ao primeiro mês
+        # Pega desde dezembro do ano anterior ao primeiro ano da janela para ter o fechamento base de janeiro
         end_date = date.today()
-        # Aproximação de dias + margem de segurança
-        start_date = end_date - timedelta(days=years * 365 + 60)
+        start_date = date(end_date.year - years, 12, 1)
         
         result = engine.collect(
             module_name="acoes_yfinance",
@@ -75,6 +76,8 @@ async def get_stock_returns(ticker: str, years: int = 10):
         monthly_perf = engine.calculate_monthly_returns(result.data)
         return monthly_perf
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

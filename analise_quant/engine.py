@@ -1,12 +1,13 @@
 """Motor principal de coleta de dados de mercado."""
 
 import logging
-from datetime import date
+import time
+from datetime import date, timedelta
 
 import pandas as pd
 
 from analise_quant.config import settings
-from analise_quant.models import CollectionResult, MarketData, MonthlyPerformance
+from analise_quant.models import CollectionResult, CollectionStatus, MarketData, MonthlyPerformance
 from analise_quant.registry import ModuleRegistry
 
 logger = logging.getLogger(__name__)
@@ -19,8 +20,10 @@ class CollectionEngine:
     e expõe métodos para executar coletas por módulo ou em massa.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, cache_ttl: int | None = None) -> None:
         self.registry = ModuleRegistry()
+        self._cache_ttl = settings.cache_ttl_seconds if cache_ttl is None else cache_ttl
+        self._cache: dict[tuple[str, tuple[str, ...], date, date], tuple[float, CollectionResult]] = {}
         self._configure_logging()
         self.registry.discover_modules()
         logger.info(
@@ -33,6 +36,10 @@ class CollectionEngine:
             format="%(asctime)s | %(name)-30s | %(levelname)-7s | %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
+
+    def clear_cache(self) -> None:
+        """Limpa o cache em memória de coletas."""
+        self._cache.clear()
 
     def collect(
         self,
@@ -59,9 +66,16 @@ class CollectionEngine:
             end_date = date.today()
 
         if start_date is None:
-            from datetime import timedelta
-
             start_date = end_date - timedelta(days=30)
+
+        normalized_tickers = tuple(t.upper().strip() for t in tickers)
+        cache_key = (module_name, normalized_tickers, start_date, end_date)
+
+        if self._cache_ttl > 0 and cache_key in self._cache:
+            cached_at, cached_result = self._cache[cache_key]
+            if (time.monotonic() - cached_at) < self._cache_ttl:
+                logger.debug("Retornando coleta em cache para %s", cache_key)
+                return cached_result
 
         module = self.registry.get_module(module_name)
         info = module.get_info()
@@ -75,6 +89,9 @@ class CollectionEngine:
         )
 
         result = module.collect(tickers, start_date, end_date)
+
+        if self._cache_ttl > 0 and result.status != CollectionStatus.ERROR:
+            self._cache[cache_key] = (time.monotonic(), result)
 
         logger.info(
             "Coleta finalizada: status=%s | registros=%d | duração=%.2fs | "
@@ -100,7 +117,14 @@ class CollectionEngine:
             Dicionário {nome_módulo: CollectionResult}.
         """
         results: dict[str, CollectionResult] = {}
-        # TODO: Implementar coleta paralela
+        for module_name in self.registry.list_modules():
+            try:
+                results[module_name] = self.collect(
+                    module_name, tickers, start_date, end_date
+                )
+            except Exception:
+                logger.exception("Falha na coleta do módulo '%s'", module_name)
+
         return results
 
     def calculate_monthly_returns(
@@ -118,26 +142,21 @@ class CollectionEngine:
         if not data:
             return []
 
-        # Converte para DataFrame
         records = [
             {"date": d.date, "close": d.adjusted_close or d.close} for d in data
         ]
         df = pd.DataFrame(records)
         df["date"] = pd.to_datetime(df["date"])
-        df.set_index("date", inplace=True)
-        df.sort_index(inplace=True)
+        df = df.set_index("date").sort_index()
 
         # Resample mensal (último preço do mês) - Usando 'ME' (Month End) para pandas >= 2.2
-        # Se falhar com ME, tenta M (compatibilidade)
         try:
             monthly_closes = df["close"].resample("ME").last()
         except ValueError:
             monthly_closes = df["close"].resample("M").last()
 
-        # Calcula retornos mensais percentuais
         monthly_returns = monthly_closes.pct_change()
 
-        # Agrupa por ano
         performance_by_year: dict[int, dict[int, float]] = {}
 
         for date_idx, ret in monthly_returns.items():
@@ -152,22 +171,33 @@ class CollectionEngine:
 
             performance_by_year[year][month] = float(ret)
 
-        # Constrói lista de resultados
-        results = []
-        # Ordena anos decrescente (mais recente primeiro)
-        sorted_years = sorted(performance_by_year.keys(), reverse=True)
+        if not performance_by_year:
+            return []
 
+        sorted_years = sorted(performance_by_year.keys(), reverse=True)
+        oldest_year = sorted_years[-1]
+        newest_year = sorted_years[0]
+
+        results = []
         for year in sorted_years:
             year_data = performance_by_year[year]
-            
-            # Calcula YTD (Year To Date)
-            # YTD = (1+r1)*(1+r2)*... - 1
+
+            # Se o ano mais antigo possui apenas meses finais de buffer (sem janeiro)
+            # e existem anos posteriores completos, ignora o ano parcial de buffer.
+            if (
+                year == oldest_year
+                and year != newest_year
+                and 1 not in year_data
+                and len(year_data) <= 2
+            ):
+                continue
+
             monthly_rets_list = list(year_data.values())
-            
+
             if monthly_rets_list:
                 ytd_mult = 1.0
                 for r in monthly_rets_list:
-                    ytd_mult *= (1 + r)
+                    ytd_mult *= 1 + r
                 ytd = ytd_mult - 1.0
             else:
                 ytd = None
@@ -182,16 +212,6 @@ class CollectionEngine:
 
         return results
 
-        for module_name in self.registry.list_modules():
-            try:
-                results[module_name] = self.collect(
-                    module_name, tickers, start_date, end_date
-                )
-            except Exception:
-                logger.exception("Falha na coleta do módulo '%s'", module_name)
-
-        return results
-
     def list_modules(self) -> list[str]:
         """Lista nomes de todos os módulos disponíveis."""
         return self.registry.list_modules()
@@ -199,3 +219,4 @@ class CollectionEngine:
     def get_module_info(self, module_name: str):
         """Retorna metadados de um módulo."""
         return self.registry.get_module(module_name).get_info()
+

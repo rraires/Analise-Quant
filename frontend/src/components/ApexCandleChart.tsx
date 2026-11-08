@@ -1,4 +1,3 @@
-import React from 'react';
 import ReactApexChart from 'react-apexcharts';
 import { ApexOptions } from 'apexcharts';
 
@@ -21,16 +20,13 @@ const ApexCandleChart = ({ data, ticker }: ApexCandleProps) => {
     // 1. Processar dados para o formato do ApexCharts
     // Formato Candle: [timestamp, open, high, low, close]
     // Formato Volume: [timestamp, volume]
-    const seriesData = data
+    const seriesData = [...data]
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
         .map(item => ({
             x: new Date(item.date).getTime(),
             y: [item.open, item.high, item.low, item.close]
         }));
 
-    // Obter data mínima e máxima para o brush
-    const minDate = seriesData.length > 0 ? seriesData[0].x : new Date().getTime();
-    const maxDate = seriesData.length > 0 ? seriesData[seriesData.length - 1].x : new Date().getTime();
 
     const candlestickOptions: ApexOptions = {
         chart: {

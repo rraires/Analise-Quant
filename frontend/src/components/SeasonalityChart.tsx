@@ -121,7 +121,7 @@ const SeasonalityChart: React.FC<SeasonalityChartProps> = ({ data, ticker }) => 
       y: {
         formatter: (val) => val.toFixed(2) + "%"
       },
-      custom: function({ series, seriesIndex, dataPointIndex, w }) {
+      custom: function({ series, seriesIndex, dataPointIndex }) {
         const stat = stats[dataPointIndex];
         const val = series[seriesIndex][dataPointIndex];
         const color = val >= 0 ? '#22c55e' : '#ef4444';

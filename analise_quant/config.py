@@ -36,8 +36,12 @@ class Settings(BaseSettings):
     )
     export_csv: bool = Field(default=True, description="Exportar dados em CSV")
     export_json: bool = Field(default=True, description="Exportar dados em JSON")
+    cache_ttl_seconds: int = Field(
+        default=300, description="Tempo de vida do cache em memória (segundos)"
+    )
 
     model_config = {"env_prefix": "AQ_", "env_file": ".env"}
 
 
 settings = Settings()
+

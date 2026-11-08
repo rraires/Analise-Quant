@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import axios from 'axios'
-import { Search, TrendingUp, AlertCircle, Calendar, DollarSign, Activity } from 'lucide-react'
+import { Search, TrendingUp, AlertCircle, Activity } from 'lucide-react'
 import InteractiveLineChart from './components/InteractiveLineChart'
 import SeasonalityChart from './components/SeasonalityChart'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -39,8 +39,6 @@ function App() {
 
     setError(null)
 
-    console.log('Iniciando busca para:', symbol, 'Periodo:', timeRange, 'Update:', isChartUpdate)
-
     let days = 30
     switch (timeRange) {
       case '6m': days = 180; break;
@@ -53,8 +51,6 @@ function App() {
 
     try {
       const response = await axios.get<MarketData[]>(`/api/stocks/${symbol}?days=${days}`)
-
-      console.log('Dados crus da API:', response.data)
 
       if (!Array.isArray(response.data)) {
         throw new Error('Formato de dados inválido recebido da API')
@@ -78,9 +74,15 @@ function App() {
         }
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Erro na busca:', err)
-      setError(err.response?.data?.detail || err.message || 'Erro ao carregar dados')
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.detail || err.message || 'Erro ao carregar dados')
+      } else if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('Erro ao carregar dados')
+      }
     } finally {
       if (isChartUpdate) {
         setChartLoading(false)
@@ -103,15 +105,6 @@ function App() {
     }
   }
 
-  const formatCurrency = (value: number | undefined | null) => {
-    if (value === undefined || value === null || isNaN(value)) return 'N/A';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
-  }
-
-  const formatDate = (dateStr: string | undefined | null) => {
-    if (!dateStr) return 'N/A';
-    return new Date(dateStr).toLocaleDateString('pt-BR')
-  }
 
   return (
     <div className="container">
@@ -123,8 +116,12 @@ function App() {
       <main>
         <form onSubmit={handleSearch} className="glass-card search-box">
           <div className="input-container">
+            <label htmlFor="ticker-input" className="sr-only" style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)' }}>
+              Código do Ativo (Ticker)
+            </label>
             <Search size={20} className="icon" />
             <input
+              id="ticker-input"
               type="text"
               placeholder="Digite o ticker (ex: PETR4, VALE3, ITUB4)..."
               value={ticker}
