@@ -1,6 +1,6 @@
-# 📈 Analise Quant — Motor de Coleta de Dados de Mercado
+# 📈 Analise Quant — Plataforma Quantitativa do Mercado Brasileiro
 
-Plataforma modular de análise quantitativa de investimentos focada no mercado brasileiro (Bovespa).
+Plataforma modular de análise quantitativa de investimentos focada no mercado financeiro brasileiro: **Ações (B3)**, **Fundos Imobiliários (FIIs)**, **Fundos de Investimento (CVM)**, **Tesouro Direto**, **CDI**, **SELIC**, **IPCA** e **Curva de Juros (ANBIMA/DI1)**.
 
 ## Instalação
 
