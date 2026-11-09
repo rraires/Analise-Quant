@@ -57,7 +57,7 @@ def fetch_bcb_sgs_series(series_code: int, start_date: date, end_date: date) -> 
         url,
         headers={"Accept": "application/json", "User-Agent": "AnaliseQuant/0.2"},
     )
-    with urllib.request.urlopen(req, timeout=12) as resp:
+    with urllib.request.urlopen(req, timeout=3.5) as resp:
         raw = json.loads(resp.read().decode("utf-8"))
         if isinstance(raw, list):
             persistent_cache.set(cache_key, raw, ttl=3600 * 6)
