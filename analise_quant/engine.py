@@ -6,6 +6,7 @@ from datetime import date, timedelta
 
 import pandas as pd
 
+from analise_quant.cache import persistent_cache
 from analise_quant.config import settings
 from analise_quant.models import CollectionResult, CollectionStatus, MarketData, MonthlyPerformance
 from analise_quant.registry import ModuleRegistry
@@ -38,8 +39,22 @@ class CollectionEngine:
         )
 
     def clear_cache(self) -> None:
-        """Limpa o cache em memória de coletas."""
+        """Limpa o cache em memória e persistente de coletas."""
         self._cache.clear()
+        persistent_cache.clear()
+
+    def resolve_module_for_symbol(self, symbol: str) -> str:
+        """Determina automaticamente o módulo de coleta ideal para o símbolo informado."""
+        s = symbol.upper().strip()
+        if s in ("CDI", "SELIC", "SELIC_META", "CDI_AA", "IPCA", "IGPM"):
+            return "bcb_sgs"
+        if s.startswith("TESOURO") or s in ("LFT", "LTN", "NTNB"):
+            return "tesouro_direto"
+        if s in ("VERDE_FIM", "ALASKA_BLACK", "DYNAMO_COUGAR", "SPX_NIMITZ", "KINEA_ATLAS") or "/" in s:
+            return "fundos_cvm"
+        if s.endswith("11") and s not in ("TAEE11", "SANB11", "KLBN11", "ALUP11", "SAPR11", "ENGI11", "BPAC11", "IGTI11"):
+            return "fiis_yfinance" if "fiis_yfinance" in self.registry.list_modules() else "acoes_yfinance"
+        return "acoes_yfinance"
 
     def collect(
         self,
@@ -48,17 +63,7 @@ class CollectionEngine:
         start_date: date | None = None,
         end_date: date | None = None,
     ) -> CollectionResult:
-        """Executa coleta via um módulo específico.
-
-        Args:
-            module_name: Nome do módulo registrado (ex: "acoes_yfinance").
-            tickers: Lista de tickers. Se None, usa a lista padrão do config.
-            start_date: Data inicial. Se None, o módulo decide o default.
-            end_date: Data final. Se None, usa hoje.
-
-        Returns:
-            CollectionResult com dados coletados.
-        """
+        """Executa coleta via um módulo específico."""
         if tickers is None:
             tickers = settings.default_tickers
 
@@ -70,12 +75,22 @@ class CollectionEngine:
 
         normalized_tickers = tuple(t.upper().strip() for t in tickers)
         cache_key = (module_name, normalized_tickers, start_date, end_date)
+        sqlite_key = f"collect:{module_name}:{','.join(normalized_tickers)}:{start_date.isoformat()}:{end_date.isoformat()}"
 
-        if self._cache_ttl > 0 and cache_key in self._cache:
-            cached_at, cached_result = self._cache[cache_key]
-            if (time.monotonic() - cached_at) < self._cache_ttl:
-                logger.debug("Retornando coleta em cache para %s", cache_key)
-                return cached_result
+        if self._cache_ttl > 0:
+            if cache_key in self._cache:
+                cached_at, cached_result = self._cache[cache_key]
+                if (time.monotonic() - cached_at) < self._cache_ttl:
+                    logger.debug("Retornando coleta em cache (RAM) para %s", cache_key)
+                    return cached_result
+            persisted = persistent_cache.get(sqlite_key)
+            if persisted is not None:
+                try:
+                    restored = CollectionResult(**persisted)
+                    self._cache[cache_key] = (time.monotonic(), restored)
+                    return restored
+                except Exception:
+                    pass
 
         module = self.registry.get_module(module_name)
         info = module.get_info()
@@ -92,6 +107,7 @@ class CollectionEngine:
 
         if self._cache_ttl > 0 and result.status != CollectionStatus.ERROR:
             self._cache[cache_key] = (time.monotonic(), result)
+            persistent_cache.set(sqlite_key, result.model_dump(mode="json"), ttl=self._cache_ttl)
 
         logger.info(
             "Coleta finalizada: status=%s | registros=%d | duração=%.2fs | "

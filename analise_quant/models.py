@@ -16,6 +16,10 @@ class AssetType(str, Enum):
     BDRS = "bdrs"
     OPCOES = "opcoes"
     CRIPTO = "cripto"
+    MACRO = "macro"
+    TESOURO = "tesouro"
+    FUNDOS = "fundos"
+    INDICES = "indices"
 
 
 class CollectionStatus(str, Enum):
@@ -87,9 +91,103 @@ class MonthlyPerformance(BaseModel):
     """Performance mensal de um ativo por ano."""
 
     year: int = Field(description="Ano de referência")
-    # Mapeia número do mês (1-12) para o retorno percentual (ex: 0.05 para 5%)
-    # Pode ser None se o mês ainda não ocorreu ou não há dados
     returns: Dict[int, Optional[float]] = Field(
         default_factory=dict, description="Retornos mensais (1=Jan, 12=Dez)"
     )
-    ytd: Optional[float] = Field(default=None, description="Retorno acumulado no ano (Year to Date)")
+    ytd: Optional[float] = Field(
+        default=None, description="Retorno acumulado no ano (Year to Date)"
+    )
+
+
+class FundamentalIndicators(BaseModel):
+    """Indicadores fundamentalistas de Ações e FIIs."""
+
+    ticker: str = Field(description="Código do ativo")
+    asset_type: str = Field(default="acoes", description="acoes ou fiis")
+    company_name: Optional[str] = Field(default=None, description="Nome da empresa/fundo")
+    sector: Optional[str] = Field(default=None, description="Setor ou segmento")
+    price: Optional[float] = Field(default=None, description="Cotação atual")
+    pl: Optional[float] = Field(default=None, description="Preço / Lucro (P/L)")
+    pvp: Optional[float] = Field(default=None, description="Preço / Valor Patrimonial (P/VP)")
+    dy: Optional[float] = Field(default=None, description="Dividend Yield 12M (decimal, ex: 0.085)")
+    roe: Optional[float] = Field(default=None, description="Return on Equity (ROE)")
+    roic: Optional[float] = Field(default=None, description="Return on Invested Capital (ROIC)")
+    ev_ebitda: Optional[float] = Field(default=None, description="EV / EBITDA")
+    net_margin: Optional[float] = Field(default=None, description="Margem Líquida")
+    debt_to_equity: Optional[float] = Field(default=None, description="Dívida / Patrimônio")
+    market_cap: Optional[float] = Field(default=None, description="Valor de mercado (R$)")
+    daily_liquidity: Optional[float] = Field(default=None, description="Liquidez média diária")
+    source: str = Field(default="yfinance+fundamentus", description="Fonte dos indicadores")
+
+
+class RiskMetrics(BaseModel):
+    """Métricas quantitativas de risco e retorno."""
+
+    ticker: str = Field(description="Código do ativo")
+    period_days: int = Field(description="Janela em dias corridos")
+    total_return: float = Field(description="Retorno acumulado no período (decimal)")
+    cagr: float = Field(description="Retorno anualizado (CAGR base 252 DU)")
+    volatility: float = Field(description="Volatilidade anualizada (base 252 DU)")
+    sharpe_ratio: float = Field(description="Índice de Sharpe (vs CDI do período)")
+    max_drawdown: float = Field(description="Maximum Drawdown no período (negativo)")
+    beta_ibov: Optional[float] = Field(default=None, description="Beta em relação ao IBOV")
+    cdi_return: float = Field(default=0.0, description="Retorno acumulado do CDI no período")
+    pct_cdi: Optional[float] = Field(default=None, description="Percentual equivalente do CDI (ex: 1.15 = 115% CDI)")
+    ibov_return: Optional[float] = Field(default=None, description="Retorno acumulado do IBOV no período")
+
+
+class ComparisonPoint(BaseModel):
+    """Ponto de série temporal normalizada (retorno acumulado %)."""
+
+    date: str = Field(description="Data ISO YYYY-MM-DD")
+    cumulative_return: float = Field(description="Retorno acumulado em % (ex: 12.5 para +12.5%)")
+
+
+class ComparisonSeries(BaseModel):
+    """Série comparativa de um ativo ou benchmark."""
+
+    name: str = Field(description="Nome do ativo ou benchmark (ex: PETR4, CDI, IBOV)")
+    category: str = Field(description="asset | benchmark")
+    total_return_pct: float = Field(description="Retorno acumulado final em %")
+    volatility_pct: Optional[float] = Field(default=None, description="Volatilidade anualizada em %")
+    sharpe: Optional[float] = Field(default=None, description="Índice de Sharpe")
+    max_drawdown_pct: Optional[float] = Field(default=None, description="Max Drawdown em %")
+    points: List[ComparisonPoint] = Field(default_factory=list, description="Pontos da curva")
+
+
+class ComparisonResponse(BaseModel):
+    """Resposta completa do comparador multi-ativos."""
+
+    period_days: int
+    series: List[ComparisonSeries] = Field(default_factory=list)
+    correlations: Dict[str, Dict[str, float]] = Field(
+        default_factory=dict, description="Matriz de correlação dos retornos diários"
+    )
+
+
+class TesouroBond(BaseModel):
+    """Dados de um título público do Tesouro Direto."""
+
+    name: str = Field(description="Nome do título (ex: Tesouro IPCA+ 2035)")
+    indexer: str = Field(description="SELIC | IPCA | PREFIXADO")
+    maturity: str = Field(description="Data de vencimento YYYY-MM-DD")
+    rate_buy: float = Field(description="Taxa de rendimento anual (% a.a.)")
+    unit_price: float = Field(description="Preço Unitário (R$)")
+    min_investment: float = Field(default=30.0, description="Investimento mínimo (R$)")
+
+
+class MacroOverview(BaseModel):
+    """Resumo macroeconômico de Juros, Inflação e Tesouro Direto."""
+
+    selic_meta_aa: float = Field(description="Taxa SELIC Meta (% a.a.)")
+    cdi_aa: float = Field(description="Taxa CDI Anualizada (% a.a.)")
+    ipca_12m: float = Field(description="IPCA acumulado 12 meses (%)")
+    real_interest_aa: float = Field(description="Juro Real ex-post aproximado (% a.a.)")
+    yield_curve: List[Dict[str, Union[str, float]]] = Field(
+        default_factory=list, description="Estrutura a termo da curva de juros (vértices)"
+    )
+    tesouro_bonds: List[TesouroBond] = Field(
+        default_factory=list, description="Títulos de referência do Tesouro Direto"
+    )
+    updated_at: str = Field(description="Data da atualização")
+

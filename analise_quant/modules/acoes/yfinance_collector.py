@@ -36,14 +36,20 @@ class YFinanceAcoesCollector(BaseCollectorModule):
         )
 
     def _format_ticker(self, ticker: str) -> str:
-        """Adiciona sufixo .SA se necessário."""
+        """Adiciona sufixo .SA se necessário (preservando índices como ^BVSP / IBOV)."""
         ticker = ticker.upper().strip()
+        if ticker in ("IBOV", "^BVSP", "IBOVESPA"):
+            return "^BVSP"
+        if ticker.startswith("^"):
+            return ticker
         if not ticker.endswith(BOVESPA_SUFFIX):
             return f"{ticker}{BOVESPA_SUFFIX}"
         return ticker
 
     def _parse_ticker(self, yf_ticker: str) -> str:
         """Remove sufixo .SA para exibição."""
+        if yf_ticker == "^BVSP":
+            return "IBOV"
         if yf_ticker.endswith(BOVESPA_SUFFIX):
             return yf_ticker[: -len(BOVESPA_SUFFIX)]
         return yf_ticker
