@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import ReactApexChart from 'react-apexcharts';
 import { ApexOptions } from 'apexcharts';
-import { DollarSign, Percent, BarChart2 } from 'lucide-react';
+import { DollarSign, Percent, BarChart2, Activity } from 'lucide-react';
 
 interface MarketData {
     ticker: string;
@@ -21,13 +21,31 @@ interface InteractiveLineChartProps {
     isLoading?: boolean;
 }
 
+const computeRollingMA = (items: MarketData[], windowSize: number) => {
+    const out: { x: number; y: number | null }[] = [];
+    let sum = 0;
+    for (let i = 0; i < items.length; i++) {
+        sum += items[i].close;
+        if (i >= windowSize) {
+            sum -= items[i - windowSize].close;
+        }
+        const count = Math.min(i + 1, windowSize);
+        out.push({
+            x: new Date(items[i].date).getTime(),
+            y: Number((sum / count).toFixed(2)),
+        });
+    }
+    return out;
+};
+
 const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading = false }: InteractiveLineChartProps) => {
     const [viewMode, setViewMode] = useState<'price' | 'return' | 'candles'>('price');
+    const [showMAs, setShowMAs] = useState<boolean>(true);
 
     // Ordenar dados por data
     const sortedData = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    const series = [{
+    const baseSeries = {
         name: ticker,
         data: sortedData.map((item) => {
             if (viewMode === 'candles') {
@@ -42,7 +60,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                     y: item.close
                 };
             } else {
-                const startPrice = sortedData[0].close;
+                const startPrice = sortedData[0]?.close || 1;
                 const accumulatedReturn = ((item.close - startPrice) / startPrice) * 100;
                 return {
                     x: new Date(item.date).getTime(),
@@ -50,14 +68,32 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                 };
             }
         })
-    }];
+    };
 
-    const chartType = viewMode === 'candles' ? 'candlestick' : 'area';
+    const maSeries = (viewMode === 'price' && showMAs && sortedData.length >= 5)
+        ? [
+            {
+                name: 'MA5 (Curta)',
+                data: computeRollingMA(sortedData, 5),
+            },
+            {
+                name: 'MA20 (Média)',
+                data: computeRollingMA(sortedData, 20),
+            },
+            {
+                name: 'MA60 (Longa)',
+                data: computeRollingMA(sortedData, 60),
+            },
+        ]
+        : [];
+
+    const series = [baseSeries, ...maSeries];
+    const chartType = viewMode === 'candles' ? 'candlestick' : 'line';
 
     const options: ApexOptions = {
         chart: {
             type: chartType,
-            height: 350,
+            height: 360,
             background: 'transparent',
             toolbar: {
                 show: true,
@@ -75,7 +111,9 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
             foreColor: '#94a3b8',
             fontFamily: 'Inter, sans-serif'
         },
-        colors: [viewMode === 'price' ? '#38bdf8' : '#10b981'],
+        colors: viewMode === 'price'
+            ? ['#38bdf8', '#f59e0b', '#10b981', '#14b8a6']
+            : ['#10b981'],
         plotOptions: {
             candlestick: {
                 colors: {
@@ -86,16 +124,16 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
         },
         stroke: {
             curve: 'smooth',
-            width: viewMode === 'candles' ? 1 : 2
+            width: viewMode === 'candles'
+                ? 1
+                : viewMode === 'price' && showMAs
+                ? [3, 1.8, 2, 2]
+                : 2.5,
+            dashArray: viewMode === 'price' && showMAs ? [0, 3, 0, 4] : 0,
         },
-        fill: viewMode === 'candles' ? { type: 'solid' } : {
-            type: 'gradient',
-            gradient: {
-                shadeIntensity: 1,
-                opacityFrom: 0.7,
-                opacityTo: 0.1,
-                stops: [0, 90, 100]
-            }
+        fill: {
+            type: 'solid',
+            opacity: viewMode === 'candles' ? 1 : [1, 0.9, 0.9, 0.85],
         },
         dataLabels: {
             enabled: false
@@ -120,17 +158,23 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
         },
         yaxis: {
             labels: {
-                formatter: (val) => viewMode === 'return' ? val.toFixed(2) + '%' : val.toFixed(2)
+                formatter: (val) => viewMode === 'return' ? `${val?.toFixed(2)}%` : `${val?.toFixed(2)}`
             },
             tooltip: {
                 enabled: true
             }
+        },
+        legend: {
+            show: true,
+            position: 'top',
+            horizontalAlign: 'left',
         },
         theme: {
             mode: 'dark'
         },
         tooltip: {
             theme: 'dark',
+            shared: viewMode !== 'candles',
             x: {
                 format: 'dd MMM yyyy'
             },
@@ -152,7 +196,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
     ];
 
     const subtitleByMode = {
-        price: 'Preço de Fechamento (R$)',
+        price: showMAs ? 'Preço de Fechamento (R$) + Médias Móveis (MA5, MA20, MA60)' : 'Preço de Fechamento (R$)',
         return: 'Retorno Acumulado (%)',
         candles: 'Candlestick OHLC (R$)'
     };
@@ -185,7 +229,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                     </p>
                 </div>
 
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     {/* View Mode Toggle */}
                     <div style={{ display: 'flex', gap: '0.25rem', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px' }}>
                         <button
@@ -198,16 +242,16 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                                 background: viewMode === 'price' ? '#38bdf8' : 'transparent',
                                 color: viewMode === 'price' ? '#0f172a' : 'var(--text-muted)',
                                 fontWeight: 500,
-                                fontSize: '0.875rem',
+                                fontSize: '0.85rem',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '0.5rem',
+                                gap: '0.4rem',
                                 transition: 'all 0.2s'
                             }}
                             title="Preço de Fechamento"
                         >
-                            <DollarSign size={16} />
-                            <span className="hidden sm:inline">Preço</span>
+                            <DollarSign size={15} />
+                            <span>Preço</span>
                         </button>
                         <button
                             onClick={() => setViewMode('return')}
@@ -219,16 +263,16 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                                 background: viewMode === 'return' ? '#10b981' : 'transparent',
                                 color: viewMode === 'return' ? '#0f172a' : 'var(--text-muted)',
                                 fontWeight: 500,
-                                fontSize: '0.875rem',
+                                fontSize: '0.85rem',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '0.5rem',
+                                gap: '0.4rem',
                                 transition: 'all 0.2s'
                             }}
                             title="Retorno Acumulado %"
                         >
-                            <Percent size={16} />
-                            <span className="hidden sm:inline">Retorno %</span>
+                            <Percent size={15} />
+                            <span>Retorno %</span>
                         </button>
                         <button
                             onClick={() => setViewMode('candles')}
@@ -240,21 +284,46 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                                 background: viewMode === 'candles' ? '#f59e0b' : 'transparent',
                                 color: viewMode === 'candles' ? '#0f172a' : 'var(--text-muted)',
                                 fontWeight: 500,
-                                fontSize: '0.875rem',
+                                fontSize: '0.85rem',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '0.5rem',
+                                gap: '0.4rem',
                                 transition: 'all 0.2s'
                             }}
                             title="Gráfico de Candlestick (OHLC)"
                         >
-                            <BarChart2 size={16} />
-                            <span className="hidden sm:inline">Candles</span>
+                            <BarChart2 size={15} />
+                            <span>Candles</span>
                         </button>
                     </div>
 
+                    {/* Toggle Médias Móveis (MA5/20/60) */}
+                    {viewMode === 'price' && (
+                        <button
+                            type="button"
+                            onClick={() => setShowMAs(!showMAs)}
+                            style={{
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                border: showMAs ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.12)',
+                                cursor: 'pointer',
+                                background: showMAs ? 'rgba(245, 158, 11, 0.16)' : 'rgba(255,255,255,0.05)',
+                                color: showMAs ? '#f59e0b' : 'var(--text-muted)',
+                                fontWeight: 600,
+                                fontSize: '0.82rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                            }}
+                            title="Exibir ou ocultar Médias Móveis MA5, MA20 e MA60"
+                        >
+                            <Activity size={15} />
+                            <span>Médias (MA5/20/60)</span>
+                        </button>
+                    )}
+
                     {/* Period Selector */}
-                    <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', gap: '0.25rem', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px' }}>
                         {periods.map((p) => (
                             <button
                                 key={p.value}
@@ -264,10 +333,10 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                                     borderRadius: '6px',
                                     border: 'none',
                                     cursor: 'pointer',
-                                    background: period === p.value ? 'var(--accent)' : 'transparent',
+                                    background: period === p.value ? '#38bdf8' : 'transparent',
                                     color: period === p.value ? '#0f172a' : 'var(--text-muted)',
-                                    fontWeight: period === p.value ? 700 : 500,
-                                    fontSize: '0.875rem',
+                                    fontWeight: period === p.value ? 600 : 400,
+                                    fontSize: '0.85rem',
                                     transition: 'all 0.2s'
                                 }}
                             >
@@ -278,13 +347,13 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                 </div>
             </div>
 
-            <div id="chart-line">
+            <div id="chart-timeline">
                 <ReactApexChart
-                    key={chartType}
+                    key={viewMode}
                     options={options}
                     series={series}
                     type={chartType}
-                    height={400}
+                    height={360}
                 />
             </div>
         </div>
@@ -292,4 +361,3 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
 };
 
 export default InteractiveLineChart;
-

@@ -16,12 +16,18 @@ from analise_quant.models import (
     MarketData,
     MonthlyPerformance,
     RiskMetrics,
+    ScannerB3Item,
+    TechnicalDecisionReport,
 )
 from analise_quant.modules.acoes.fundamentos_collector import get_fundamental_indicators
 from analise_quant.modules.fundos.cvm_collector import list_reference_funds
 from analise_quant.modules.renda_fixa.tesouro_collector import (
     get_brazil_yield_curve,
     list_tesouro_bonds,
+)
+from analise_quant.technical_decision import (
+    analyze_technical_decision,
+    run_b3_opportunity_scanner,
 )
 
 app = FastAPI(title="Analise Quant API", version="0.2.0")
@@ -195,6 +201,64 @@ async def get_macro_overview():
 async def get_funds_catalog():
     """Retorna catálogo de Fundos de Investimento CVM de referência."""
     return list_reference_funds()
+
+
+@app.get("/api/stocks/{ticker}/decision", response_model=TechnicalDecisionReport)
+async def get_stock_technical_decision(ticker: str, days: int = 365):
+    """Retorna o Painel de Decisão Técnica (Score 0-100, MA5/10/20/60, Bias, MACD, RSI e 6 Estratégias B3)."""
+    try:
+        end_date = date.today()
+        start_date = end_date - timedelta(days=max(days, 90))
+        module_name = engine.resolve_module_for_symbol(ticker)
+
+        asset_res = engine.collect(module_name, [ticker], start_date, end_date)
+        if asset_res.status == CollectionStatus.ERROR or not asset_res.data:
+            raise HTTPException(
+                status_code=404, detail=f"Sem dados para análise de decisão de {ticker}"
+            )
+
+        fundamentals = None
+        if module_name in ("acoes_yfinance", "fiis_yfinance"):
+            try:
+                fundamentals = get_fundamental_indicators(ticker)
+            except Exception:
+                fundamentals = None
+
+        return analyze_technical_decision(
+            ticker=ticker,
+            series=asset_res.data,
+            fundamentals=fundamentals,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/scanner/b3", response_model=List[ScannerB3Item])
+async def get_b3_scanner(
+    asset_class: str = Query(
+        default="ALL",
+        description="Filtro de classe: ALL | ACAO | FII",
+    ),
+):
+    """Executa o Scanner Diário de Oportunidades B3 ordenando ativos pelo Score de Decisão (0-100)."""
+    end_date = date.today()
+    start_date = end_date - timedelta(days=120)
+
+    def _cached_series_provider(sym: str) -> List[MarketData]:
+        mod = engine.resolve_module_for_symbol(sym)
+        cache_key = (mod, (sym.upper(),), start_date, end_date)
+        entry = engine._cache.get(cache_key)
+        if entry:
+            return entry[1].data
+        return []
+
+    return run_b3_opportunity_scanner(
+        series_provider=_cached_series_provider,
+        fundamentals_provider=get_fundamental_indicators,
+        asset_class_filter=asset_class,
+    )
 
 
 if __name__ == "__main__":

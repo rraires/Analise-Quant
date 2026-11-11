@@ -191,3 +191,92 @@ class MacroOverview(BaseModel):
     )
     updated_at: str = Field(description="Data da atualização")
 
+
+class StrategyEvaluation(BaseModel):
+    """Resultado da avaliação de uma estratégia quantitativa/técnica para o ativo."""
+
+    id: str = Field(description="Identificador da estratégia (ex: bull_trend)")
+    name: str = Field(description="Nome em português da estratégia")
+    category: str = Field(description="Categoria (Tendência, Rompimento, Pullback, Range, Qualidade)")
+    status: str = Field(description="APROVADO | ALERTA | NEUTRO | REPROVADO")
+    score_impact: int = Field(description="Impacto no score (-15 a +15)")
+    summary: str = Field(description="Explicação objetiva do sinal para o ativo na B3")
+
+
+class TechnicalDecisionReport(BaseModel):
+    """Painel de Decisão Técnica e Estratégias inspirado em zhulinsen/daily_stock_analysis adaptado para B3."""
+
+    ticker: str = Field(description="Código do ativo na B3")
+    current_price: float = Field(description="Preço de fechamento mais recente")
+    signal_score: int = Field(description="Score quantitativo consolidado de 0 a 100")
+    buy_signal: str = Field(
+        description="COMPRA FORTE | COMPRA | AGUARDAR PULLBACK | MANTER / NEUTRO | VENDA / CAUTELA"
+    )
+    trend_status: str = Field(description="Estado da tendência (ex: Forte Alta, Alta, Consolidação, Baixa)")
+    ma_alignment: str = Field(description="Descrição do alinhamento das médias móveis")
+    trend_strength: float = Field(description="Força da tendência (0 a 100)")
+
+    # Médias Móveis e Distanciamento (Bias)
+    ma5: float = Field(description="Média Móvel Simples de 5 pregões")
+    ma10: float = Field(description="Média Móvel Simples de 10 pregões")
+    ma20: float = Field(description="Média Móvel Simples de 20 pregões")
+    ma60: float = Field(description="Média Móvel Simples de 60 pregões")
+    bias_ma5: float = Field(description="Distanciamento percentual para MA5 (%)")
+    bias_ma10: float = Field(description="Distanciamento percentual para MA10 (%)")
+    bias_ma20: float = Field(description="Distanciamento percentual para MA20 (%)")
+
+    # Volume
+    volume_status: str = Field(description="Classificação do comportamento de volume")
+    volume_ratio_5d: float = Field(description="Razão entre volume atual e média de 5 pregões")
+    volume_trend: str = Field(description="Explicação da dinâmica de volume e preço")
+
+    # MACD (12, 26, 9)
+    macd_dif: float = Field(description="Linha rápida DIF (EMA12 - EMA26)")
+    macd_dea: float = Field(description="Linha de sinal DEA (EMA9 do DIF)")
+    macd_bar: float = Field(description="Histograma MACD")
+    macd_status: str = Field(description="Estado do MACD (Golden Cross, Bullish, Death Cross, etc.)")
+    macd_signal: str = Field(description="Descrição detalhada do sinal MACD")
+
+    # RSI / IFR Wilder (6, 12, 24)
+    rsi_6: float = Field(description="IFR / RSI de 6 períodos (curto prazo)")
+    rsi_12: float = Field(description="IFR / RSI de 12 períodos (médio prazo)")
+    rsi_24: float = Field(description="IFR / RSI de 24 períodos (longo prazo)")
+    rsi_status: str = Field(description="Estado do IFR (Sobrevendido, Força Compradora, Neutro, Sobrecomprado)")
+    rsi_signal: str = Field(description="Descrição detalhada do sinal IFR")
+
+    # Níveis Operacionais (Suporte, Resistência, Entrada e Stop)
+    ideal_entry_price: float = Field(description="Preço ideal de entrada (região MA5/MA10 sem esticar)")
+    stop_loss_price: float = Field(description="Stop loss técnico (abaixo da MA20 ou mínima recente)")
+    resistance_20d: float = Field(description="Resistência (máxima dos últimos 20 pregões)")
+    support_20d: float = Field(description="Suporte (mínima dos últimos 20 pregões)")
+    support_ma5: bool = Field(description="Se o preço está testando suporte na MA5")
+    support_ma10: bool = Field(description="Se o preço está testando suporte na MA10")
+
+    # Checklists e Estratégias
+    signal_reasons: List[str] = Field(default_factory=list, description="Pontos favoráveis (Checklist de Compra)")
+    risk_factors: List[str] = Field(default_factory=list, description="Fatores de risco e alertas anti-euforia")
+    strategies: List[StrategyEvaluation] = Field(
+        default_factory=list, description="Avaliação das 6 estratégias adaptadas para B3"
+    )
+
+
+class ScannerB3Item(BaseModel):
+    """Item do ranking diário de oportunidades B3 (Ações e FIIs)."""
+
+    ticker: str
+    name: str
+    asset_class: str = Field(description="ACAO | FII")
+    sector: str
+    current_price: float
+    signal_score: int
+    buy_signal: str
+    trend_status: str
+    bias_ma5: float
+    rsi_12: float
+    volume_ratio_5d: float
+    dy_pct: Optional[float] = None
+    p_vp: Optional[float] = None
+    p_l: Optional[float] = None
+    top_catalyst: str = Field(description="Principal motivo técnico/fundamentalista do ativo hoje")
+
+

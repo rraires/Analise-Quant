@@ -157,3 +157,54 @@ class TestQuantitativeAnalytics:
         assert len(comp.series) == 2
         assert "PETR4" in comp.correlations
         assert comp.series[0].points[0].cumulative_return == 0.0
+
+    def test_technical_decision_and_b3_scanner(self):
+        import pandas as pd
+        from analise_quant.technical_decision import (
+            analyze_technical_decision,
+            run_b3_opportunity_scanner,
+        )
+
+        days = pd.bdate_range(start="2025-01-02", periods=65)
+        series = [
+            MarketData(
+                ticker="PETR4",
+                date=ts.to_pydatetime(),
+                open=34.0 + i * 0.08,
+                high=34.3 + i * 0.08,
+                low=33.8 + i * 0.08,
+                close=34.1 + i * 0.08,
+                adjusted_close=34.1 + i * 0.08,
+                volume=10_000_000 if i < 64 else 6_800_000,
+                currency="BRL",
+                source="test",
+            )
+            for i, ts in enumerate(days)
+        ]
+
+        fund = get_fundamental_indicators("PETR4")
+        decision = analyze_technical_decision("PETR4", series, fundamentals=fund)
+
+        assert decision.ticker == "PETR4"
+        assert 5 <= decision.signal_score <= 98
+        assert decision.ma5 > decision.ma10 > decision.ma20
+        assert len(decision.strategies) == 6
+        assert any(s.id == "bull_trend" and s.status == "APROVADO" for s in decision.strategies)
+        assert decision.ideal_entry_price > 0
+        assert decision.stop_loss_price > 0
+
+        scanner_items = run_b3_opportunity_scanner(
+            series_provider=lambda _sym: [],
+            fundamentals_provider=get_fundamental_indicators,
+            asset_class_filter="ALL",
+        )
+        assert len(scanner_items) >= 10
+        assert scanner_items[0].signal_score >= scanner_items[-1].signal_score
+
+        fii_items = run_b3_opportunity_scanner(
+            series_provider=lambda _sym: [],
+            fundamentals_provider=get_fundamental_indicators,
+            asset_class_filter="FII",
+        )
+        assert all(it.asset_class == "FII" for it in fii_items)
+

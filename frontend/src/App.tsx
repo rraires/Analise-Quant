@@ -11,12 +11,15 @@ import {
   Landmark,
   Percent,
   GitCompare,
+  Radar,
 } from 'lucide-react'
 import InteractiveLineChart from './components/InteractiveLineChart'
 import SeasonalityChart from './components/SeasonalityChart'
 import ErrorBoundary from './components/ErrorBoundary'
 import MonthlyReturnsTable, { MonthlyPerformance } from './components/MonthlyReturnsTable'
 import RiskAndFundamentalsPanel, { FundamentalIndicators, RiskMetrics } from './components/RiskAndFundamentalsPanel'
+import TechnicalDecisionPanel, { TechnicalDecisionReport } from './components/TechnicalDecisionPanel'
+import B3ScannerPanel from './components/B3ScannerPanel'
 import AssetComparisonChart from './components/AssetComparisonChart'
 import MacroAndFixedIncomePanel, { MacroSectionFilter } from './components/MacroAndFixedIncomePanel'
 
@@ -33,7 +36,7 @@ interface MarketData {
   source: string
 }
 
-type NavMenuId = 'todos' | 'acoes' | 'fiis' | 'fundos' | 'tesouro' | 'juros' | 'comparador'
+type NavMenuId = 'todos' | 'scanner' | 'acoes' | 'fiis' | 'fundos' | 'tesouro' | 'juros' | 'comparador'
 
 const NAV_MENU_ITEMS: {
   id: NavMenuId
@@ -48,6 +51,13 @@ const NAV_MENU_ITEMS: {
     label: 'Painel Completo',
     subtitle: 'Todas as análises na mesma tela',
     icon: LayoutGrid,
+  },
+  {
+    id: 'scanner',
+    label: 'Scanner & Sinais B3',
+    subtitle: 'Score 0–100, 6 Estratégias e Ranking',
+    anchorId: 'secao-scanner-b3',
+    icon: Radar,
   },
   {
     id: 'acoes',
@@ -110,6 +120,14 @@ const CATEGORY_QUICK_ASSETS: Record<NavMenuId, { label: string; code: string; ta
     { label: 'CDI', code: 'CDI', tag: 'Bacen' },
     { label: 'IBOV', code: 'IBOV', tag: 'Índice' },
   ],
+  scanner: [
+    { label: 'WEGE3 (Score Alto)', code: 'WEGE3', tag: 'Ação B3' },
+    { label: 'PETR4 (Dividendos)', code: 'PETR4', tag: 'Ação B3' },
+    { label: 'HGLG11 (FII Logística)', code: 'HGLG11', tag: 'FII B3' },
+    { label: 'ITUB4 (Bancos)', code: 'ITUB4', tag: 'Ação B3' },
+    { label: 'MXRF11 (FII Papel)', code: 'MXRF11', tag: 'FII B3' },
+    { label: 'BBAS3 (Desconto P/VP)', code: 'BBAS3', tag: 'Ação B3' },
+  ],
   acoes: [
     { label: 'PETR4 (Petrobras)', code: 'PETR4', tag: 'Petróleo' },
     { label: 'VALE3 (Vale)', code: 'VALE3', tag: 'Mineração' },
@@ -169,6 +187,7 @@ function App() {
   const [monthlyData, setMonthlyData] = useState<MonthlyPerformance[]>([])
   const [fundamentals, setFundamentals] = useState<FundamentalIndicators | null>(null)
   const [riskMetrics, setRiskMetrics] = useState<RiskMetrics | null>(null)
+  const [decision, setDecision] = useState<TechnicalDecisionReport | null>(null)
   const [loading, setLoading] = useState(false)
   const [chartLoading, setChartLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -186,6 +205,7 @@ function App() {
       setMonthlyData([])
       setFundamentals(null)
       setRiskMetrics(null)
+      setDecision(null)
     }
 
     setError(null)
@@ -220,6 +240,10 @@ function App() {
         .then((res) => setRiskMetrics(res.data))
         .catch(() => {})
 
+      axios.get<TechnicalDecisionReport>(`/api/stocks/${cleanSymbol}/decision?days=${days}`)
+        .then((res) => setDecision(res.data))
+        .catch(() => {})
+
       if (!isChartUpdate) {
         axios.get<MonthlyPerformance[]>(`/api/stocks/${cleanSymbol}/returns`)
           .then((res) => setMonthlyData(res.data))
@@ -248,7 +272,6 @@ function App() {
     }
   }
 
-  // Carrega automaticamente PETR4 na inicialização para exibir todos os gráficos imediatamente
   useEffect(() => {
     fetchData('PETR4', '1y', false)
   }, [])
@@ -306,7 +329,7 @@ function App() {
     <div className="container">
       <header className="header" style={{ marginBottom: '1.5rem' }}>
         <h1>Analise Quant</h1>
-        <p>Plataforma Quantitativa do Mercado Brasileiro — Ações, FIIs, Fundos CVM, Tesouro Direto, CDI e Juros</p>
+        <p>Plataforma Quantitativa do Mercado Brasileiro — Ações, FIIs, Fundos CVM, Tesouro Direto, CDI, Juros e Sinais Técnicos</p>
       </header>
 
       {/* MENU PRINCIPAL DE NAVEGAÇÃO POR MÓDULOS DO MERCADO BRASILEIRO */}
@@ -317,7 +340,7 @@ function App() {
           padding: '0.85rem',
           marginBottom: '1.5rem',
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
           gap: '0.6rem',
         }}
       >
@@ -348,11 +371,11 @@ function App() {
                 transition: 'all 0.2s ease',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700, fontSize: '0.88rem', color: isActive ? '#38bdf8' : '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700, fontSize: '0.86rem', color: isActive ? '#38bdf8' : '#f8fafc' }}>
                 <IconComponent size={16} />
                 <span>{item.label}</span>
               </div>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.25 }}>
+              <span style={{ fontSize: '0.71rem', color: 'var(--text-muted)', lineHeight: 1.25 }}>
                 {item.subtitle}
               </span>
             </button>
@@ -451,6 +474,11 @@ function App() {
             </div>
           ) : data.length > 0 ? (
             <>
+              {/* Painel de Decisão Técnica (Score 0-100 + 6 Estratégias B3) */}
+              <ErrorBoundary>
+                <TechnicalDecisionPanel decision={decision} />
+              </ErrorBoundary>
+
               <RiskAndFundamentalsPanel
                 fundamentals={fundamentals}
                 riskMetrics={riskMetrics}
@@ -480,6 +508,11 @@ function App() {
               <p>Compare Ações, Fundos Imobiliários (FIIs), Fundos CVM, Tesouro Direto, CDI e IBOV na mesma tela.</p>
             </div>
           )}
+
+          {/* Scanner Diário de Oportunidades B3 (Ações & FIIs ranqueados por Score 0-100) */}
+          <ErrorBoundary>
+            <B3ScannerPanel onSelectSymbol={handleQuickSelect} />
+          </ErrorBoundary>
 
           {/* Comparador Multi-Ativos sempre visível na tela principal */}
           <div id="secao-comparador">

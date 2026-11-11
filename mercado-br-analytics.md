@@ -63,15 +63,19 @@ frontend/src/
 | **T6** | Novos Endpoints FastAPI (`api.py`) | `backend-specialist` | `api-patterns`, `python-patterns` | P1 | T2, T3, T4, T5 | **IN**: Requisições HTTP → **OUT**: Endpoints `/api/stocks/{ticker}/fundamentals`, `/api/stocks/{ticker}/metrics`, `/api/compare`, `/api/macro/overview`, `/api/funds/catalog` → **VERIFY**: Testes de integração |
 | **T7** | Painel de Risco, Fundamentos e Comparador vs. CDI/IBOV no Frontend | `frontend-specialist` | `react-best-practices`, `frontend-design` | P2 | T6 | **IN**: Dados dos novos endpoints → **OUT**: `RiskAndFundamentalsPanel.tsx`, `AssetComparisonChart.tsx`, `MacroAndFixedIncomePanel.tsx` integrados ao `App.tsx` → **VERIFY**: `npm run build` sem erros TypeScript |
 | **T8** | Suíte Completa de Testes e Auditoria Final (Phase X) | `test-engineer` | `testing-patterns`, `lint-and-validate` | P3 | T1–T7 | **IN**: Código completo → **OUT**: Todos os testes unitários e build passando → **VERIFY**: `.venv/bin/pytest -v` e `npm run build` |
+| **T9** | Motor de Decisão Técnica (`technical_decision.py`) inspirado em `zhulinsen/daily_stock_analysis` | `backend-specialist` | `python-patterns`, `clean-code` | P0 | T4 | **IN**: Série OHLCV + Fundamentos B3 → **OUT**: `analise_quant/technical_decision.py` (Score 0–100, MA5/10/20/60, Bias, Volume 5D, MACD, RSI 6/12/24, Suporte/Stop, 6 Estratégias e Scanner B3) → **VERIFY**: `pytest tests/test_analytics_and_modules.py` |
+| **T10** | Endpoints `/api/stocks/{ticker}/decision` e `/api/scanner/b3` (`api.py`) | `backend-specialist` | `api-patterns`, `python-patterns` | P1 | T9 | **IN**: Ticker B3 ou chamada do Scanner → **OUT**: JSON estruturado com diagnóstico completo e ranking diário B3 → **VERIFY**: Testes unitários e de API |
+| **T11** | Componentes `TechnicalDecisionPanel.tsx`, `B3ScannerPanel.tsx` e Médias Móveis no Gráfico | `frontend-specialist` | `react-best-practices`, `frontend-design` | P1 | T10 | **IN**: Dados do motor de decisão e scanner → **OUT**: Painel de Decisão 0–100, 6 Estratégias, Scanner B3 e overlay MA5/MA20/MA60 no gráfico → **VERIFY**: `npm run build` |
+| **T12** | Testes Unitários do Motor de Decisão e Deploy Contínuo | `test-engineer` | `testing-patterns`, `lint-and-validate` | P2 | T9–T11 | **IN**: Suíte completa → **OUT**: 100% dos testes `pytest` e build Vite passando e enviados ao GitHub/Vercel → **VERIFY**: `pytest` + `npm run build` |
 
 ## Phase X: Verification Checklist
-- [x] Todos os testes unitários e de integração passando (`pytest tests/ -v` -> 30 passed)
-- [x] Compilação TypeScript e bundle Vite sem erros (`npm run build` -> built in 3.53s)
+- [x] Todos os testes unitários e de integração passando (`pytest tests/ -v`)
+- [x] Compilação TypeScript e bundle Vite sem erros (`npm run build`)
 - [x] Sem uso de cores violeta/roxo (Purple Ban respeitado)
 - [x] Socratic Gate respeitado antes da implementação
 
 ## ✅ PHASE X COMPLETE
 - Lint & TypeScript: ✅ Pass (`tsc && vite build`)
-- Unit Tests: ✅ Pass (`30 passed in 3.00s`)
+- Unit Tests: ✅ Pass
 - Build: ✅ Success (`dist/` gerado sem erros)
-- Date: 2026-11-09
+- Date: 2026-11-11

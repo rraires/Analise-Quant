@@ -26,7 +26,9 @@ def _make_mock_df(tickers: list[str]) -> pd.DataFrame:
 
 @pytest.fixture
 def engine():
-    return CollectionEngine()
+    eng = CollectionEngine()
+    eng.clear_cache()
+    return eng
 
 
 class TestCollectionEngine:
