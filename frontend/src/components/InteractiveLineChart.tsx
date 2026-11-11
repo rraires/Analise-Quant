@@ -22,7 +22,7 @@ interface InteractiveLineChartProps {
 }
 
 const computeRollingMA = (items: MarketData[], windowSize: number) => {
-    const out: { x: number; y: number | null }[] = [];
+    const out: { x: number; y: number }[] = [];
     let sum = 0;
     for (let i = 0; i < items.length; i++) {
         sum += items[i].close;
@@ -42,33 +42,43 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
     const [viewMode, setViewMode] = useState<'price' | 'return' | 'candles'>('price');
     const [showMAs, setShowMAs] = useState<boolean>(true);
 
-    // Ordenar dados por data
+    // Ordenar dados por data em ordem crescente
     const sortedData = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    const baseSeries = {
-        name: ticker,
-        data: sortedData.map((item) => {
-            if (viewMode === 'candles') {
-                return {
-                    x: new Date(item.date).getTime(),
-                    y: [item.open, item.high, item.low, item.close]
-                };
-            }
-            if (viewMode === 'price') {
-                return {
-                    x: new Date(item.date).getTime(),
-                    y: item.close
-                };
-            } else {
-                const startPrice = sortedData[0]?.close || 1;
-                const accumulatedReturn = ((item.close - startPrice) / startPrice) * 100;
-                return {
-                    x: new Date(item.date).getTime(),
-                    y: accumulatedReturn
-                };
-            }
-        })
-    };
+    // Em modo Candles, garante que ativos de cota única (CDI, Tesouro, Fundos) também tenham corpo OHLC visível
+    const candleData = sortedData.map((item, idx) => {
+        const prevClose = idx > 0 ? sortedData[idx - 1].close : item.open || item.close;
+        const rawOpen = Number(item.open ?? prevClose);
+        const rawClose = Number(item.close);
+        const rawHigh = Number(item.high ?? Math.max(rawOpen, rawClose));
+        const rawLow = Number(item.low ?? Math.min(rawOpen, rawClose));
+
+        const isFlat = Math.abs(rawOpen - rawClose) < 1e-6 && Math.abs(rawHigh - rawLow) < 1e-6;
+        const openVal = isFlat ? Number(prevClose.toFixed(2)) : Number(rawOpen.toFixed(2));
+        const closeVal = Number(rawClose.toFixed(2));
+        const highVal = Number(Math.max(rawHigh, openVal, closeVal).toFixed(2));
+        const lowVal = Number(Math.min(rawLow, openVal, closeVal).toFixed(2));
+
+        return {
+            x: new Date(item.date).getTime(),
+            y: [openVal, highVal, lowVal, closeVal],
+        };
+    });
+
+    const priceOrReturnData = sortedData.map((item) => {
+        if (viewMode === 'price') {
+            return {
+                x: new Date(item.date).getTime(),
+                y: Number(item.close.toFixed(2)),
+            };
+        }
+        const startPrice = sortedData[0]?.close || 1;
+        const accumulatedReturn = ((item.close - startPrice) / startPrice) * 100;
+        return {
+            x: new Date(item.date).getTime(),
+            y: Number(accumulatedReturn.toFixed(2)),
+        };
+    });
 
     const maSeries = (viewMode === 'price' && showMAs && sortedData.length >= 5)
         ? [
@@ -87,12 +97,24 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
         ]
         : [];
 
-    const series = [baseSeries, ...maSeries];
-    const chartType = viewMode === 'candles' ? 'candlestick' : 'line';
+    const candleSeries = [
+        {
+            name: ticker,
+            data: candleData,
+        },
+    ];
 
-    const options: ApexOptions = {
+    const lineSeries = [
+        {
+            name: ticker,
+            data: priceOrReturnData,
+        },
+        ...maSeries,
+    ];
+
+    const candleOptions: ApexOptions = {
         chart: {
-            type: chartType,
+            type: 'candlestick',
             height: 360,
             background: 'transparent',
             toolbar: {
@@ -104,65 +126,124 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                     zoomin: true,
                     zoomout: true,
                     pan: true,
-                    reset: true
+                    reset: true,
                 },
-                autoSelected: 'zoom'
+                autoSelected: 'zoom',
             },
             foreColor: '#94a3b8',
-            fontFamily: 'Inter, sans-serif'
+            fontFamily: 'Inter, sans-serif',
         },
-        colors: viewMode === 'price'
-            ? ['#38bdf8', '#f59e0b', '#10b981', '#14b8a6']
-            : ['#10b981'],
         plotOptions: {
             candlestick: {
                 colors: {
                     upward: '#10b981',
-                    downward: '#ef4444'
-                }
-            }
-        },
-        stroke: {
-            curve: 'smooth',
-            width: viewMode === 'candles'
-                ? 1
-                : viewMode === 'price' && showMAs
-                ? [3, 1.8, 2, 2]
-                : 2.5,
-            dashArray: viewMode === 'price' && showMAs ? [0, 3, 0, 4] : 0,
-        },
-        fill: {
-            type: 'solid',
-            opacity: viewMode === 'candles' ? 1 : [1, 0.9, 0.9, 0.85],
-        },
-        dataLabels: {
-            enabled: false
+                    downward: '#ef4444',
+                },
+                wick: {
+                    useFillColor: true,
+                },
+            },
         },
         grid: {
             borderColor: '#334155',
             strokeDashArray: 4,
             xaxis: {
-                lines: { show: false }
+                lines: { show: false },
             },
             yaxis: {
-                lines: { show: true }
-            }
+                lines: { show: true },
+            },
+        },
+        xaxis: {
+            type: 'datetime',
+            axisBorder: { show: false },
+            axisTicks: { show: false },
+        },
+        yaxis: {
+            tooltip: {
+                enabled: true,
+            },
+            labels: {
+                formatter: (val) => (typeof val === 'number' ? `R$ ${val.toFixed(2)}` : String(val)),
+            },
+        },
+        theme: {
+            mode: 'dark',
+        },
+        tooltip: {
+            theme: 'dark',
+            x: {
+                format: 'dd MMM yyyy',
+            },
+        },
+    };
+
+    const lineOptions: ApexOptions = {
+        chart: {
+            type: 'line',
+            height: 360,
+            background: 'transparent',
+            toolbar: {
+                show: true,
+                tools: {
+                    download: false,
+                    selection: true,
+                    zoom: true,
+                    zoomin: true,
+                    zoomout: true,
+                    pan: true,
+                    reset: true,
+                },
+                autoSelected: 'zoom',
+            },
+            foreColor: '#94a3b8',
+            fontFamily: 'Inter, sans-serif',
+        },
+        colors: viewMode === 'price'
+            ? ['#38bdf8', '#f59e0b', '#10b981', '#14b8a6']
+            : ['#10b981'],
+        stroke: {
+            curve: 'smooth',
+            width: viewMode === 'price' && showMAs ? [3, 1.8, 2, 2] : 2.5,
+            dashArray: viewMode === 'price' && showMAs ? [0, 3, 0, 4] : 0,
+        },
+        fill: {
+            type: 'solid',
+            opacity: [1, 0.9, 0.9, 0.85],
+        },
+        dataLabels: {
+            enabled: false,
+        },
+        grid: {
+            borderColor: '#334155',
+            strokeDashArray: 4,
+            xaxis: {
+                lines: { show: false },
+            },
+            yaxis: {
+                lines: { show: true },
+            },
         },
         xaxis: {
             type: 'datetime',
             axisBorder: { show: false },
             axisTicks: { show: false },
             tooltip: {
-                enabled: false
-            }
+                enabled: false,
+            },
         },
         yaxis: {
             labels: {
-                formatter: (val) => viewMode === 'return' ? `${val?.toFixed(2)}%` : `${val?.toFixed(2)}`
+                formatter: (val) =>
+                    typeof val === 'number'
+                        ? viewMode === 'return'
+                            ? `${val.toFixed(2)}%`
+                            : `R$ ${val.toFixed(2)}`
+                        : String(val),
             },
             tooltip: {
-                enabled: true
-            }
+                enabled: true,
+            },
         },
         legend: {
             show: true,
@@ -170,21 +251,26 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
             horizontalAlign: 'left',
         },
         theme: {
-            mode: 'dark'
+            mode: 'dark',
         },
         tooltip: {
             theme: 'dark',
-            shared: viewMode !== 'candles',
+            shared: true,
             x: {
-                format: 'dd MMM yyyy'
+                format: 'dd MMM yyyy',
             },
-            y: viewMode === 'candles' ? undefined : {
-                formatter: (val) => viewMode === 'price' ? `R$ ${val?.toFixed(2)}` : `${val?.toFixed(2)}%`
+            y: {
+                formatter: (val) =>
+                    typeof val === 'number'
+                        ? viewMode === 'price'
+                            ? `R$ ${val.toFixed(2)}`
+                            : `${val.toFixed(2)}%`
+                        : '',
             },
             style: {
-                fontSize: '12px'
-            }
-        }
+                fontSize: '12px',
+            },
+        },
     };
 
     const periods = [
@@ -192,13 +278,13 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
         { label: '1A', value: '1y' },
         { label: '3A', value: '3y' },
         { label: '5A', value: '5y' },
-        { label: '10A', value: '10y' }
+        { label: '10A', value: '10y' },
     ];
 
     const subtitleByMode = {
         price: showMAs ? 'Preço de Fechamento (R$) + Médias Móveis (MA5, MA20, MA60)' : 'Preço de Fechamento (R$)',
         return: 'Retorno Acumulado (%)',
-        candles: 'Candlestick OHLC (R$)'
+        candles: 'Candlestick OHLC — Abertura, Máxima, Mínima e Fechamento (R$)',
     };
 
     return (
@@ -216,7 +302,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                     justifyContent: 'center',
                     alignItems: 'center',
                     zIndex: 10,
-                    borderRadius: '16px'
+                    borderRadius: '16px',
                 }}>
                     <div className="spinner" style={{ width: '40px', height: '40px', borderWidth: '3px' }}></div>
                 </div>
@@ -233,6 +319,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                     {/* View Mode Toggle */}
                     <div style={{ display: 'flex', gap: '0.25rem', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px' }}>
                         <button
+                            type="button"
                             onClick={() => setViewMode('price')}
                             style={{
                                 padding: '6px 12px',
@@ -246,7 +333,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '0.4rem',
-                                transition: 'all 0.2s'
+                                transition: 'all 0.2s',
                             }}
                             title="Preço de Fechamento"
                         >
@@ -254,6 +341,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                             <span>Preço</span>
                         </button>
                         <button
+                            type="button"
                             onClick={() => setViewMode('return')}
                             style={{
                                 padding: '6px 12px',
@@ -267,7 +355,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '0.4rem',
-                                transition: 'all 0.2s'
+                                transition: 'all 0.2s',
                             }}
                             title="Retorno Acumulado %"
                         >
@@ -275,6 +363,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                             <span>Retorno %</span>
                         </button>
                         <button
+                            type="button"
                             onClick={() => setViewMode('candles')}
                             style={{
                                 padding: '6px 12px',
@@ -288,7 +377,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '0.4rem',
-                                transition: 'all 0.2s'
+                                transition: 'all 0.2s',
                             }}
                             title="Gráfico de Candlestick (OHLC)"
                         >
@@ -327,6 +416,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                         {periods.map((p) => (
                             <button
                                 key={p.value}
+                                type="button"
                                 onClick={() => onPeriodChange(p.value)}
                                 style={{
                                     padding: '6px 12px',
@@ -337,7 +427,7 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
                                     color: period === p.value ? '#0f172a' : 'var(--text-muted)',
                                     fontWeight: period === p.value ? 600 : 400,
                                     fontSize: '0.85rem',
-                                    transition: 'all 0.2s'
+                                    transition: 'all 0.2s',
                                 }}
                             >
                                 {p.label}
@@ -348,13 +438,23 @@ const InteractiveLineChart = ({ data, ticker, period, onPeriodChange, isLoading 
             </div>
 
             <div id="chart-timeline">
-                <ReactApexChart
-                    key={viewMode}
-                    options={options}
-                    series={series}
-                    type={chartType}
-                    height={360}
-                />
+                {viewMode === 'candles' ? (
+                    <ReactApexChart
+                        key={`candles-${ticker}-${period}`}
+                        options={candleOptions}
+                        series={candleSeries}
+                        type="candlestick"
+                        height={360}
+                    />
+                ) : (
+                    <ReactApexChart
+                        key={`${viewMode}-${ticker}-${period}-${showMAs}`}
+                        options={lineOptions}
+                        series={lineSeries}
+                        type="line"
+                        height={360}
+                    />
+                )}
             </div>
         </div>
     );
